@@ -1,14 +1,43 @@
 const multer = require("multer");
 const path = require("path");
 const crypto = require("crypto");
+const multerS3 = require("multer-s3");
+const aws = require("aws-sdk");
 
-module.exports = {
-  dest: path.resolve(__dirname, "..", "..", "tmp", "uploads"),
-  storage: multer.diskStorage({
+
+// let aws_test = new S3Client({
+//   region: process.env.AWS_DEFAULT_REGION,
+//   credentials: {
+//     accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+//     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+//   },
+//   sslEnabled: false,
+//   s3ForcePathStyle: true,
+//   signatureVersion: "v4"
+// });
+
+const storageTypes = {
+  local: multer.diskStorage({
     destination: (req, file, cb) => {
       cb(null, path.resolve(__dirname, "..", "..", "tmp", "uploads"));
     },
     filename: (req, file, cb) => {
+      crypto.randomBytes(16, (err, hash) => {
+        if (err) cb(err);
+
+        file.key = `${hash.toString("hex")}-${file.originalname}`;
+        console.log(file.key);
+
+        cb(null, file.key);
+      })
+    }
+  }),
+  s3: multerS3({
+    s3: new aws.S3(),
+    bucket: process.env.AWS_BUCKET_NAME,
+    contentType: multerS3.AUTO_CONTENT_TYPE,
+    acl: 'public-read',
+    key: (req, file, cb) => {
       crypto.randomBytes(16, (err, hash) => {
         if (err) cb(err);
 
@@ -18,6 +47,11 @@ module.exports = {
       })
     }
   }),
+}
+
+module.exports = {
+  dest: path.resolve(__dirname, "..", "..", "tmp", "uploads"),
+  storage: storageTypes["s3"],
   limits: {
     fileSize: 2 * 1024 * 9024,
   }, 
